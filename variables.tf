@@ -1,7 +1,7 @@
 variable "aws_region" {
   description = "The AWS region to deploy resources in"
   type        = string
-  default     = "us-east-1"
+  default     = "us-west-2"
 }
 
 variable "origin_domain_name" {
@@ -17,6 +17,21 @@ variable "origin_id" {
 variable "default_cache_behavior" {
   description = "Default cache behavior settings"
   type        = any
+}
+
+variable "certificate_arn" {
+  description = "The ARN of the ACM SSL certificate"
+  type        = string
+}
+
+variable "waf_web_acl_id" {
+  description = "The ID of the WAF web ACL"
+  type        = string
+}
+
+variable "log_bucket" {
+  description = "The S3 bucket for CloudFront access logs"
+  type        = string
 }
 
 variable "tags" {
