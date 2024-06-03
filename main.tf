@@ -4,10 +4,10 @@ resource "aws_cloudfront_distribution" "main" {
     origin_id   = var.origin_id
 
     custom_origin_config {
-      http_port                = 80
-      https_port               = 443
-      origin_protocol_policy   = "https-only"
-      origin_ssl_protocols     = ["TLSv1.2"]
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "https-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
     }
   }
 
@@ -44,26 +44,64 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+    acm_certificate_arn            = var.certificate_arn
+    ssl_support_method             = "sni-only"
+    minimum_protocol_version       = "TLSv1.2_2018"
+    cloudfront_default_certificate = false
   }
+
+  logging_config {
+    include_cookies = false
+    bucket          = "${var.log_bucket}.s3.amazonaws.com"
+    prefix          = "cloudfront-logs/"
+  }
+
+  web_acl_id = var.waf_web_acl_id
 
   tags = merge({
     Name = "main-cloudfront-distribution"
   }, var.tags)
 }
 
-data "aws_iam_policy_document" "s3_bucket_policy" {
-  statement {
-    actions   = ["s3:GetObject"]
-    resources = ["arn:aws:s3:::${var.origin_domain_name}/*"]
-    principals {
-      type        = "Service"
-      identifiers = ["cloudfront.amazonaws.com"]
-    }
-  }
+resource "aws_s3_bucket" "log_bucket" {
+  bucket = var.log_bucket
+  acl    = "log-delivery-write"
+  tags   = var.tags
 }
 
-resource "aws_s3_bucket_policy" "bucket_policy" {
-  bucket = var.origin_domain_name
-  policy = data.aws_iam_policy_document.s3_bucket_policy.json
+resource "aws_wafv2_web_acl" "example" {
+  name        = "example"
+  description = "Example WAF"
+  scope       = "CLOUDFRONT"
+  default_action {
+    allow {}
+  }
+
+  rule {
+    name     = "AWS-AWSManagedRulesCommonRuleSet"
+    priority = 1
+    override_action {
+      none {}
+    }
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesCommonRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "AWSManagedRulesCommonRuleSet"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  visibility_config {
+    cloudwatch_metrics_enabled = true
+    metric_name                = "example"
+    sampled_requests_enabled   = true
+  }
+
+  tags = var.tags
 }
+
